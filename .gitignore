@@ -1,0 +1,46 @@
+# Окружение
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.local
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Логи
+*.log
+logs/
+
+# Docker
+# Редко комитят docker-compose.override.yml, но оставим
+docker-compose.override.yml
+
+# Файлы блокировки зависимостей (если используете pipenv/poetry – добавьте по вкусу)
+Pipfile.lock
+poetry.lock*

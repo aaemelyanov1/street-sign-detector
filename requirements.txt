@@ -1,0 +1,7 @@
+fastapi==0.136.1
+httpx==0.28.1
+python-dotenv==1.2.2
+uvicorn==0.46.0
+ultralytics==8.4.41        # включает torch, torchvision
+python-multipart==0.0.26   # для загрузки файлов
+Pillow==11.3.0

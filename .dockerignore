@@ -1,0 +1,62 @@
+# Git
+.git
+.git/
+.gitignore
+.gitattributes
+
+# Окружение
+.env
+.env.example
+.venv
+.venv/
+venv
+env
+venv/
+
+# Документация и README
+README.md
+docs/
+
+# IDE
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Python-мусор
+__pycache__
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info
+*.eggs
+dist
+build
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Логи и временные файлы
+*.log
+logs
+*.tmp
+
+# Тесты и инструменты разработки
+tests/
+.pytest_cache
+.ruff_cache
+pre-commit-config.yaml
+
+# Docker-файлы (не нужны в контексте сборки)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD директории
+.github/
+
+# Данные и модели (если не копируются специально; модель копируется явно)
+runs
+outputs
+data/raw
+data/processed
