@@ -119,6 +119,12 @@ docker compose up --scale worker=1
 ```bash
 docker compose down
 ```
+Запуск без Docker (только для разработки)
+```bash
+uvicorn app.main:app --reload
+```
+Требуются локально запущенные Kafka (на localhost:9092) и Redis (на localhost:6379).
+Worker запускается отдельно: python -m app.worker.
 
 ## Взаимодействие ML и Backend
 

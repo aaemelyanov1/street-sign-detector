@@ -39,7 +39,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: ../Dockerfile.api
+      dockerfile: Dockerfile.api
     image: street-sign-api:latest
     container_name: api
     ports:
@@ -63,7 +63,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: ../Dockerfile.worker
+      dockerfile: Dockerfile.worker
     image: street-sign-worker:latest
     # Контейнеры будут именоваться docker compose с учётом масштаба: worker-1, worker-2, ...
     volumes:
