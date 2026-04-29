@@ -1,15 +1,84 @@
 # Stret Sign Detection (RTSD)
 
 Веб-приложение для обнаружения дорожных знаков на изображениях.  
+Использует YOLO-модель, FastAPI-бэкенд, Kafka и Redis.
+
+## Структура проекта
+
+```
+street-sign-detector/
+├── app/                          # Backend-приложение (FastAPI + Worker)
+│   ├── main.py                   # точка входа API (uvicorn)
+│   ├── worker.py                 # точка входа воркера (Kafka consumer)
+│   ├── api/                      # эндпоинты, Pydantic-схемы, зависимости
+│   ├── core/                     # конфигурация, логирование, исключения
+│   ├── services/                 # работа с Kafka, Redis, управление задачами
+│   └── utils/                    # вспомогательные утилиты (сохранение файлов)
+├── ml/                           # Изолированная ML-часть
+│   ├── model.py                  # загрузка YOLO-модели
+│   ├── predict.py                # функция инференса predict_from_file()
+│   ├── utils.py                  # вспомогательные ML-функции
+│   └── models/                   # каталог для файлов весов
+│       └── model_weights.pt      # обученная модель (добавляется отдельно)
+├── frontend/                     # Frontend-часть приложения
+├── data/                         # Общее хранилище (shared volume)
+│   └── uploads/                  # временные загруженные изображения
+│   Dockerfile.api                # образ FastAPI
+│   Dockerfile.worker             # образ воркера
+│   Dockerfile.worker-gpu         # образ воркера с поддержкой GPU
+├── docker-compose.yml            # локальный запуск всех сервисов
+├── .env.example                  # образец переменных окружения
+├── requirements.txt              # Python-зависимости
+└── README.md
+```
 
 ## Быстрый старт
 
-### 1. Клонирование
+### 1. Подготовка локального репозитория для работы
+1. Необходимо создать форк репозитория у себя в GitHub (нажать Fork)
+Форк - это точная копия основного репозитория на вашем аккаунте GitHub. Но в процессе Вы можете изменять его независимо от родительского репозитория. Для комфортной работы рекомендуется поддерживать форк идентичным основе (делать регулярный git push origin)
+2. Склонировать себе репозиторий на локальную машину. Так как после создания форка он идентичен основному репозиторию, клонировать можно любой из них.
 ```bash
 git lfs install          # если ещё не установлен Git LFS
 git clone https://github.com/Timeyan/street-sign-detector
-cd <папка_проекта>
+cd street-sign-detector
 git lfs pull             # загрузить файлы моделей, когда они появятся
+```
+3. Задать связи локального репозитория с основным и с форком.
+```bash
+git remote add upstream git@github.com:Timeyan/street-sign-detector.git
+git remote add origin git@github.com:<user_name>/street-sign-detector.git
+```
+Origin – связь с форком. Через origin Вы будете заливать свои изменения на GitHub.
+Upstream – связь с main-репозиторием. Push в него делать запрещено, можно только забирать из него свежие апдейты. Перед внедрением изменений необходимо обязательно актуализировать репозиторий через pull upstream.
+
+Посмотреть текущие связи можно командой 
+```bash
+git remote -v
+```
+#### Пример добавления своих изменений (полный цикл)
+
+```bash
+git status                       # Мы сейчас в main и убеждаемся в этом
+git pull upstream main           # Актуализируем изменения из main основного репозитория
+git push origin main             # Добавляем изменения в свой форк, чтобы он совпадал с upstream
+git checkout -b <название_ветки> # Создание новой ветки для фичи и переход в нее
+
+# Тут происходит магия написания кода
+
+git add .                        # Добавление измененных файлов для дальнейшего коммита
+git commit -m "<message>"        # Коммит (фиксация) изменений в локальном репозитории
+git push origin <название_ветки> # Отправка изменений в форк
+# Лучше добавлять изменения в аналогичную ветку в форке и не коммитить в main
+# Тогда репозитоий будет всегда чистым (без лишних веток)
+
+# Здесь происходит pull request и pull ваших изменений в upstream
+
+git checkout main                # Возвращаемся в main
+git pull upstream main           # Забираем свои изменения из upstream в локальный репозиторий 
+                                 # (они же изначально были в рабочей ветке, а нужны в main, да-да)
+git push origin main             # ну и актуализируем наш origin (форк)
+
 ```
 
 ### 2. Переменные окружения
@@ -29,25 +98,33 @@ pip install -r requirements-dev.txt
 ```
 requirements-dev.txt используется ТОЛЬКО для разработки. Для прода нужен чистый (без библиотечного мусора) requirements.txt.
 
-### 3. Запуск ПО
-Можно запустить без докера:
+### 4. Запуск ПО
+Первый запуск (сборка + 2 воркера)
 ```bash
-uvicorn backend.main:app --reload
+docker compose up --build --scale worker=2
 ```
-Но лучше всегда запускать в контейнере:
+Будут загружены образы Kafka и Redis, собраны образы API и worker’ов.
+
+Последующие запуски (без пересборки)
 ```bash
-docker build -f Dockerfile.cpu -t traffic-sign-backend .
-docker run --env-file .env -p 8000:8000 traffic-sign-backend
-# или
-docker-compose up --build
+docker compose up --scale worker=2
 ```
-Swagger UI: http://localhost:8000/docs
+Запуск с одним воркером
+```bash
+docker compose up --scale worker=1
+```
+После старта откройте Swagger UI: http://localhost:8000/docs
+
+Остановка
+```bash
+docker compose down
+```
 
 ## Взаимодействие ML и Backend
 
-- **ML‑разработчик** размещает веса модели (`.pt`) в `ml/models/` и реализует `ml/predict.py` с функцией `predict(image_path, conf)`, возвращающей список предсказаний (класс, уверенность, bbox и т.д.).
-- **Backend‑разработчик** импортирует `predict` из `ml.predict` и использует её в API‑эндпоинтах.
-- Модель загружается один раз при старте приложения (через `predict.py`).
+- **ML-разработчик** размещает веса модели (`.pt`) в `ml/models/` и реализует `ml/predict.py` с функцией `predict_from_file(image_path, confidence_threshold)`, возвращающей список словарей с полями `class_name`, `bbox`, `confidence`.
+- **Backend-разработчик** использует эту функцию в worker-процессе (`app/worker.py`), который асинхронно обрабатывает задачи из очереди Kafka. Само API (FastAPI) не вызывает модель напрямую – оно принимает изображения, ставит задачи в очередь и отдаёт результат при запросе.
+- Модель загружается один раз при старте worker’а (через `ml.model.load_model()`), что гарантирует эффективное использование ресурсов.
 
 ## Что добавится в репозиторий
 

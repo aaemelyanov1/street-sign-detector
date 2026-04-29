@@ -56,7 +56,5 @@ docker-compose*.yml
 .github/
 
 # Данные и модели (если не копируются специально; модель копируется явно)
-runs
-outputs
-data/raw
-data/processed
+data/uploads/*
+!data/uploads/.gitkeep
