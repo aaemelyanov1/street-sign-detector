@@ -1,6 +1,36 @@
 # Stret Sign Detection (RTSD)
 
 Веб-приложение для обнаружения дорожных знаков на изображениях.  
+Использует YOLO-модель, FastAPI-бэкенд, Kafka и Redis.
+
+## Структура проекта
+
+```
+street-sign-detector/
+├── app/                          # Backend-приложение (FastAPI + Worker)
+│   ├── main.py                   # точка входа API (uvicorn)
+│   ├── worker.py                 # точка входа воркера (Kafka consumer)
+│   ├── api/                      # эндпоинты, Pydantic-схемы, зависимости
+│   ├── core/                     # конфигурация, логирование, исключения
+│   ├── services/                 # работа с Kafka, Redis, управление задачами
+│   └── utils/                    # вспомогательные утилиты (сохранение файлов)
+├── ml/                           # Изолированная ML-часть
+│   ├── model.py                  # загрузка YOLO-модели
+│   ├── predict.py                # функция инференса predict_from_file()
+│   ├── utils.py                  # вспомогательные ML-функции
+│   └── models/                   # каталог для файлов весов
+│       └── model_weights.pt      # обученная модель (добавляется отдельно)
+├── frontend/                     # Frontend-часть приложения
+├── data/                         # Общее хранилище (shared volume)
+│   └── uploads/                  # временные загруженные изображения
+│   Dockerfile.api                # образ FastAPI
+│   Dockerfile.worker             # образ воркера
+│   Dockerfile.worker-gpu         # образ воркера с поддержкой GPU
+├── docker-compose.yml            # локальный запуск всех сервисов
+├── .env.example                  # образец переменных окружения
+├── requirements.txt              # Python-зависимости
+└── README.md
+```
 
 ## Быстрый старт
 
@@ -69,24 +99,38 @@ pip install -r requirements-dev.txt
 requirements-dev.txt используется ТОЛЬКО для разработки. Для прода нужен чистый (без библиотечного мусора) requirements.txt.
 
 ### 4. Запуск ПО
-Можно запустить без докера:
+Первый запуск (сборка + 2 воркера)
 ```bash
-uvicorn backend.main:app --reload
+docker compose up --build --scale worker=2
 ```
-Но лучше всегда запускать в контейнере:
+Будут загружены образы Kafka и Redis, собраны образы API и worker’ов.
+
+Последующие запуски (без пересборки)
 ```bash
-docker build -f Dockerfile.cpu -t traffic-sign-backend .
-docker run --env-file .env -p 8000:8000 traffic-sign-backend
-# или
-docker-compose up --build
+docker compose up --scale worker=2
 ```
-Swagger UI: http://localhost:8000/docs
+Запуск с одним воркером
+```bash
+docker compose up --scale worker=1
+```
+После старта откройте Swagger UI: http://localhost:8000/docs
+
+Остановка
+```bash
+docker compose down
+```
+Запуск без Docker (только для разработки)
+```bash
+uvicorn app.main:app --reload
+```
+Требуются локально запущенные Kafka (на localhost:9092) и Redis (на localhost:6379).
+Worker запускается отдельно: python -m app.worker.
 
 ## Взаимодействие ML и Backend
 
-- **ML‑разработчик** размещает веса модели (`.pt`) в `ml/models/` и реализует `ml/predict.py` с функцией `predict(image_path, conf)`, возвращающей список предсказаний (класс, уверенность, bbox и т.д.).
-- **Backend‑разработчик** импортирует `predict` из `ml.predict` и использует её в API‑эндпоинтах.
-- Модель загружается один раз при старте приложения (через `predict.py`).
+- **ML-разработчик** размещает веса модели (`.pt`) в `ml/models/` и реализует `ml/predict.py` с функцией `predict_from_file(image_path, confidence_threshold)`, возвращающей список словарей с полями `class_name`, `bbox`, `confidence`.
+- **Backend-разработчик** использует эту функцию в worker-процессе (`app/worker.py`), который асинхронно обрабатывает задачи из очереди Kafka. Само API (FastAPI) не вызывает модель напрямую – оно принимает изображения, ставит задачи в очередь и отдаёт результат при запросе.
+- Модель загружается один раз при старте worker’а (через `ml.model.load_model()`), что гарантирует эффективное использование ресурсов.
 
 ## Что добавится в репозиторий
 

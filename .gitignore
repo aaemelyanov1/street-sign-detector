@@ -44,3 +44,8 @@ docker-compose.override.yml
 # Файлы блокировки зависимостей (если используете pipenv/poetry – добавьте по вкусу)
 Pipfile.lock
 poetry.lock*
+
+# Данные и модель
+data/uploads/*
+!data/uploads/.gitkeep
+ml/models/model_weights.pt

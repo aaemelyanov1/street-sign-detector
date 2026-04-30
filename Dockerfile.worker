@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+ENV PYTHONUNBUFFERED=1
+
+# 🔹 системные зависимости (OpenCV + YOLO)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 🔹 только зависимости (для кеша)
+COPY requirements.txt .
+
+# 🔹 обновляем pip
+RUN pip install --upgrade pip
+
+# 🔴 САМЫЙ ВАЖНЫЙ СЛОЙ — torch отдельно
+RUN pip install --no-cache-dir --default-timeout=300 \
+    torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# 🔹 остальные зависимости
+RUN pip install --no-cache-dir --default-timeout=300 -r requirements.txt
+
+# Копируем код и МОДЕЛЬ
+COPY . .
+
+CMD ["python", "-m", "app.worker"]
