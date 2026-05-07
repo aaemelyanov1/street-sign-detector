@@ -1,3 +1,11 @@
+x-worker-env: &worker-env
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_TOPIC_REQUESTS: detection-requests
+  REDIS_URL: redis://redis:6379
+  UPLOAD_DIR: /data/uploads
+  DEFAULT_CONFIDENCE_THRESHOLD: 0.5
+  MAX_IMAGE_SIZE_MB: 10
+
 services:
   kafka:
     image: apache/kafka:3.7.0
@@ -47,12 +55,7 @@ services:
     volumes:
       - ./data:/data
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC_REQUESTS: detection-requests
-      REDIS_URL: redis://redis:6379
-      UPLOAD_DIR: /data/uploads
-      DEFAULT_CONFIDENCE_THRESHOLD: 0.5
-      MAX_IMAGE_SIZE_MB: 10
+      <<: *worker-env
     depends_on:
       kafka:
         condition: service_healthy
@@ -64,17 +67,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    profiles: ["cpu", ""]
     image: street-sign-worker:latest
     # Контейнеры будут именоваться docker compose с учётом масштаба: worker-1, worker-2, ...
     volumes:
       - ./data:/data
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC_REQUESTS: detection-requests
-      REDIS_URL: redis://redis:6379
-      UPLOAD_DIR: /data/uploads
-      DEFAULT_CONFIDENCE_THRESHOLD: 0.5
-      MAX_IMAGE_SIZE_MB: 10
+      <<: *worker-env
     depends_on:
       kafka:
         condition: service_healthy
@@ -82,3 +81,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
     # Масштабирование задаётся при запуске: docker compose up --scale worker=2
+  worker-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker-gpu
+    image: street-sign-worker-gpu:latest
+    profiles: ["gpu"]
+    volumes:
+      - ./data:/data
+    environment:
+      <<: *worker-env
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
