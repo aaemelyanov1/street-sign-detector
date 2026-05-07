@@ -48,4 +48,3 @@ poetry.lock*
 # Данные и модель
 data/uploads/*
 !data/uploads/.gitkeep
-ml/models/model_weights.pt

@@ -5,11 +5,39 @@ on:
     branches: [ main ]
 
 jobs:
-  build-docker:
+  build-api:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          lfs: true          # модель хранится в LFS
+      - name: Build API image
+        run: docker build -f Dockerfile.api -t street-sign-api:${{ github.sha }} .
 
-      - name: Build Docker image (CPU)
-        run: docker build -f Dockerfile.cpu -t road-signs:test .
+  build-worker-cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Build CPU Worker image
+        run: docker build -f Dockerfile.worker -t street-sign-worker-cpu:${{ github.sha }} .
+      - name: Smoke test – load model
+        run: |
+          docker run --rm street-sign-worker-cpu:${{ github.sha }} \
+            python -c "from ml.model import load_model; load_model(); print('Model loaded OK')"
+
+  # Этот job сработает только если runner имеет метку 'gpu'
+  build-worker-gpu:
+    runs-on: [self-hosted, gpu]
+    if: false   # Раскомментировать, когда появится GPU-раннер
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Build GPU Worker image
+        run: docker build -f Dockerfile.worker-gpu -t street-sign-worker-gpu:${{ github.sha }} .
+      - name: Smoke test (GPU)
+        run: |
+          docker run --rm --gpus all street-sign-worker-gpu:${{ github.sha }} \
+            python -c "from ml.model import load_model; import torch; assert torch.cuda.is_available(); load_model(); print('GPU Worker OK')"
