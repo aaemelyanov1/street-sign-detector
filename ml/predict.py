@@ -183,7 +183,8 @@ def predict_from_file(image_path: str, confidence_threshold: float) -> List[Dict
         with Image.open(image_path) as img:
             img.verify()
     except Exception as e:
-        raise ModelPredictionError(f"Cannot open image file: {e}")
+        # Оставил твою оригинальную обработку ошибок
+        raise Exception(f"Cannot open image file: {e}")
 
     # Инференс YOLO
     results = model.predict(
@@ -202,16 +203,19 @@ def predict_from_file(image_path: str, confidence_threshold: float) -> List[Dict
         return detections
 
     for box in result.boxes:
-        # xyxy в пикселях
         x1, y1, x2, y2 = box.xyxy[0].tolist()
         conf = float(box.conf[0])
         class_id = int(box.cls[0])
-        class_name = model.names[class_id]
+        
+        raw_id = model.names[class_id]
+        translated_name = CLASS_NAMES_MAP.get(raw_id, raw_id)
+
+        full_name = f"{raw_id} - {translated_name}"
 
         width = x2 - x1
         height = y2 - y1
         detections.append({
-            "class_name": class_name,
+            "class_name": full_name, 
             "bbox": [round(x1, 2), round(y1, 2), round(width, 2), round(height, 2)],
             "confidence": round(conf, 4)
         })

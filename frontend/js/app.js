@@ -217,19 +217,56 @@ function stopPolling() {
     elements.btnClear.disabled = false;
 }
 
+// Вспомогательная функция для вычисления пересечения рамок (IoU)
+function calculateIoU(box1, box2) {
+    const [x1, y1, w1, h1] = box1;
+    const [x2, y2, w2, h2] = box2;
+
+    const x_overlap = Math.max(0, Math.min(x1 + w1, x2 + w2) - Math.max(x1, x2));
+    const y_overlap = Math.max(0, Math.min(y1 + h1, y2 + h2) - Math.max(y1, y2));
+    const overlap_area = x_overlap * y_overlap;
+
+    const area1 = w1 * h1;
+    const area2 = w2 * h2;
+    const union_area = area1 + area2 - overlap_area;
+
+    return overlap_area / union_area;
+}
+
+// Функция для удаления дубликатов
+function filterDuplicates(detections, threshold = 0.5) {
+    // Сортируем по уверенности (от большего к меньшему)
+    const sorted = [...detections].sort((a, b) => b.confidence - a.confidence);
+    const result = [];
+
+    while (sorted.length > 0) {
+        const best = sorted.shift();
+        result.push(best);
+
+        // Удаляем все остальные рамки, которые сильно пересекаются с текущей лучшей
+        for (let i = 0; i < sorted.length; i++) {
+            if (calculateIoU(best.bbox, sorted[i].bbox) > threshold) {
+                sorted.splice(i, 1);
+                i--;
+            }
+        }
+    }
+    return result;
+}
+
 // Обработка и визуализация результатов 
 
 function handleSuccess(detections) {
-    // если бэкенд вернул null или undefined, превращаем это в пустой массив []
-    const safeDetections = detections || [];
+    // Убираем дубликаты по координатам
+    let filtered = filterDuplicates(detections || [], 0.5);
 
-    state.lastDetections = safeDetections;
+    state.lastDetections = filtered;
     elements.resultsSection.classList.remove('hidden');
-    elements.detectionsCount.textContent = safeDetections.length;
+    elements.detectionsCount.textContent = filtered.length;
     
-    renderDetectionsList(safeDetections);
-    drawBoundingBoxes(safeDetections);
-    showToast(`Готово! Найдено объектов: ${safeDetections.length}`);
+    renderDetectionsList(filtered);
+    drawBoundingBoxes(filtered);
+    showToast(`Готово! Найдено объектов: ${filtered.length}`);
 }
 
 function renderDetectionsList(detections) {
@@ -240,10 +277,8 @@ function renderDetectionsList(detections) {
         return;
     }
 
-    // Сортировка по убыванию уверенности
-    const sorted = [...detections].sort((a, b) => b.confidence - a.confidence);
-
-    sorted.forEach(d => {
+    // Здесь используем d.class_name (русское слово)
+    detections.forEach(d => {
         const confPercent = (d.confidence * 100).toFixed(1);
         const item = document.createElement('div');
         item.className = 'detection-item';
@@ -259,41 +294,34 @@ function drawBoundingBoxes(detections) {
     if (!state.imageObj) return;
 
     const canvasWidth = elements.canvas.width;
-    // Относительная толщина линии и шрифта (чтобы на больших 4K фото рамки не были тонкими)
     const strokeWidth = Math.max(3, canvasWidth / 400); 
     const fontSize = Math.max(16, canvasWidth / 100);
 
     ctx.font = `600 ${fontSize}px Inter, sans-serif`;
     ctx.textBaseline = 'top';
 
-    const sortedDetections = [...detections].sort((a, b) => a.confidence - b.confidence);
-
-    sortedDetections.forEach(d => {
+    detections.forEach(d => {
         const [x, y, w, h] = d.bbox;
-        const text = `${d.class_name} ${(d.confidence * 100).toFixed(0)}%`;
         
-        // Рисуем рамку 
+        const shortName = d.class_name.split(' - ')[0];
+        
+        const text = `${shortName} ${(d.confidence * 100).toFixed(0)}%`;
+        
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = strokeWidth;
         ctx.strokeRect(x, y, w, h);
 
-        // Расчет плашки под текст
         const textMetrics = ctx.measureText(text);
         const textWidth = textMetrics.width;
         const textHeight = fontSize * 1.2;
         const padding = strokeWidth * 2;
 
-        // Позиция плашки (защита от выхода за верхний край)
         let labelY = y - textHeight - padding;
-        if (labelY < 0) {
-            labelY = y + strokeWidth; // Рисуем внутри коробки, если уперлись в верх
-        }
+        if (labelY < 0) labelY = y + strokeWidth;
 
-        // Рисуем фон текста
         ctx.fillStyle = '#ef4444'; 
         ctx.fillRect(x - strokeWidth/2, labelY, textWidth + padding * 2, textHeight + padding);
 
-        // Рисуем текст
         ctx.fillStyle = '#ffffff';
         ctx.fillText(text, x + padding - strokeWidth/2, labelY + padding/2);
     });
