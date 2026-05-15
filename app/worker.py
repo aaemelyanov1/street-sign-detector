@@ -1,5 +1,13 @@
+"""
+Точка входа для worker-процесса.
+Запускает асинхронный цикл консьюмера Kafka, обрабатывает задачи детекции.
+"""
 import asyncio
 import logging
+import os
+import time
+from pathlib import Path
+
 from app.core.config import settings
 from app.core.logging_config import setup_logging
 from app.services.kafka_consumer import KafkaConsumerManager
@@ -11,8 +19,28 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+def cleanup_old_files(upload_dir: str, max_age_seconds: int = 1800):
+    """Удаляет файлы старше max_age_seconds в upload_dir (не рекурсивно)."""
+    try:
+        base = Path(upload_dir)
+        if not base.exists():
+            return
+        now = time.time()
+        for path in base.iterdir():
+            if path.is_file():
+                age = now - path.stat().st_mtime
+                if age > max_age_seconds:
+                    path.unlink()
+                    logger.info("Deleted old file", extra={"path": str(path), "age_seconds": age})
+    except Exception as e:
+        logger.warning("Error during cleanup of old files: %s", str(e))
+
+
 async def main():
     logger.info("Starting worker")
+
+    # Очистка старых файлов (старше 30 минут)
+    cleanup_old_files(settings.UPLOAD_DIR, max_age_seconds=1800)
 
     # Попытка загрузить модель при запуске
     try:
@@ -24,6 +52,7 @@ async def main():
     redis_client = ResultStorage(redis_url=settings.REDIS_URL)
     await redis_client.connect()
 
+    # Обработчик сообщений
     async def handle_message(task_id: str, image_path: str, confidence_threshold: float):
         try:
             detections = predict_from_file(image_path, confidence_threshold)
@@ -32,6 +61,14 @@ async def main():
         except Exception as e:
             logger.error("Task failed", extra={"task_id": task_id, "error": str(e)})
             await redis_client.set_error(task_id, str(e))
+        finally:
+            # Удаляем файл сразу после обработки (успех или ошибка)
+            try:
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                    logger.debug("Removed processed image", extra={"image_path": image_path})
+            except Exception as e:
+                logger.warning("Could not remove image: %s", str(e))
 
     consumer_manager = KafkaConsumerManager(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
