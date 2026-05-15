@@ -1,6 +1,6 @@
 // Конфигурация
-const API_BASE_URL = 'http://localhost:8000'; // Измените, если бэкенд на другом хосте
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const API_BASE_URL = ''; // Измените, если бэкенд на другом хосте
+const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
 
 // Состояние приложения
 let state = {
