@@ -7,7 +7,6 @@ from app.core.config import settings
 from app.api.schemas import TaskResponse, ResultResponse, DetectionResult
 from app.services.result_storage import ResultStorage
 from app.services.kafka_producer import KafkaProducerManager
-from app.services.task_manager import TaskManager
 from app.utils.image_helpers import save_upload_file
 from app.api.dependencies import get_kafka_producer, get_redis_client
 
@@ -31,13 +30,8 @@ async def create_detection_task(
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported file type. Only JPEG and PNG allowed.")
 
-    # Валидация размера (будет проверено после сохранения)
-    content = await file.read()
-    size_mb = len(content) / (1024 * 1024)
-    if size_mb > settings.MAX_IMAGE_SIZE_MB:
-        raise HTTPException(status_code=400, detail=f"File too large. Max size {settings.MAX_IMAGE_SIZE_MB} MB.")
-
     # Сохранение файла
+    content = await file.read()
     file_bytes = content
     task_id = str(uuid.uuid4())
     file_extension = Path(file.filename).suffix if file.filename else ".jpg"

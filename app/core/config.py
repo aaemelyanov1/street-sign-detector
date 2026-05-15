@@ -16,7 +16,6 @@ class Settings(BaseSettings):
 
     # Пороги
     DEFAULT_CONFIDENCE_THRESHOLD: float = 0.5
-    MAX_IMAGE_SIZE_MB: float = 10.0
 
     model_config = {
         "env_file": ".env",
