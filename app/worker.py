@@ -59,6 +59,7 @@ async def main():
         load_model()  # кеширует в глобальную переменную
     except ModelLoadError as e:
         logger.critical("Cannot start worker: %s", str(e))
+        await asyncio.sleep(5)
         raise SystemExit(1)
 
     redis_client = ResultStorage(redis_url=settings.REDIS_URL)
