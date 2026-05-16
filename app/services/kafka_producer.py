@@ -15,6 +15,7 @@ class KafkaProducerManager:
         self.bootstrap_servers = bootstrap_servers
         self.topic = topic
         self.producer: AIOKafkaProducer | None = None
+        self._connected = False
 
     async def start(self):
         self.producer = AIOKafkaProducer(
@@ -22,12 +23,17 @@ class KafkaProducerManager:
             value_serializer=lambda v: json.dumps(v).encode("utf-8")
         )
         await self.producer.start()
+        self._connected = True
         logger.info("Kafka producer started")
 
     async def stop(self):
         if self.producer:
             await self.producer.stop()
+            self._connected = False
             logger.info("Kafka producer stopped")
+
+    def is_connected(self) -> bool:
+        return self._connected
 
     async def send_request(self, task_id: str, image_path: str, confidence_threshold: float):
         message = {

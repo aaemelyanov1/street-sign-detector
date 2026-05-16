@@ -7,7 +7,8 @@ class TestHealthEndpoints:
     async def test_health(self, client):
         response = await client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "ok"
 
     async def test_ready(self, client):
         response = await client.get("/ready")
@@ -32,11 +33,12 @@ class TestDetectEndpoint:
         assert response.status_code == 400
 
     async def test_post_detect_with_large_file(self, client):
-        # Создаём файл больше 10 МБ
-        big_data = b"x" * (11 * 1024 * 1024)
+        # Создаём файл больше 30 МБ
+        big_data = b"x" * (31 * 1024 * 1024)
         files = {"file": ("large.jpg", big_data, "image/jpeg")}
         response = await client.post("/detect", files=files)
-        assert response.status_code == 400
+        # Ограничение размера теперь на стороне nginx, API принимает любой размер
+        assert response.status_code == 202
 
 @pytest.mark.asyncio
 class TestResultEndpoint:

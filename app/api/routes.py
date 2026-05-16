@@ -44,10 +44,10 @@ async def create_detection_task(
         ERRORS_TOTAL.inc()
         raise HTTPException(status_code=400, detail="Unsupported file type. Only JPEG and PNG allowed.")
 
-        # Проверка доступности worker'ов
-        if not await _has_workers(redis_client):
-            ERRORS_TOTAL.inc()
-            raise HTTPException(status_code=503, detail="No available workers. Please try later.")
+    # Проверка доступности worker'ов
+    if not await _has_workers(redis_client):
+        ERRORS_TOTAL.inc()
+        raise HTTPException(status_code=503, detail="No available workers. Please try later.")
 
     # Сохранение файла
     content = await file.read()
@@ -109,9 +109,15 @@ async def metrics():
 
 
 @router.get("/health")
-async def health(request: Request):
+async def health():
+    """Liveness probe: проверяет, жив ли процесс."""
+    return {"status": "ok"}
+
+
+@router.get("/ready")
+async def ready(request: Request):
     """
-    Проверка здоровья сервиса (проверка Kafka и Redis).
+    Проверка готовности сервиса.
     """
     try:
         # Получаем клиенты из состояния приложения через request
@@ -122,24 +128,16 @@ async def health(request: Request):
         kafka_producer = request.app.state.kafka_producer
         if not kafka_producer.is_connected():
             return {"status": "error", "details": {"kafka": "disconnected"}}
-            
-        return {"status": "ok", "details": {"redis": "connected", "kafka": "connected"}}
-    except Exception as e:
-        return {"status": "error", "details": {"exception": str(e)}}
 
-
-@router.get("/ready")
-async def ready(request: Request):
-    """
-    Проверка готовности сервиса.
-    """
-    try:
         # Проверяем, загружена ли модель
         # Предполагаем, что модель загружается в worker, и мы можем проверить это через состояние
         # В реальности это может быть более сложная проверка
         
         # Пока просто возвращаем ok, так как у нас нет прямого доступа к состоянию модели
         # В реальном приложении здесь должна быть проверка состояния модели
+
         return {"status": "ok"}
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"status": "error", "details": {"exception": str(e)}}
+        raise HTTPException(status_code=503, detail=f"Readiness check failed: {str(e)}")

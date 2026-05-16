@@ -19,12 +19,19 @@ class ResultStorage:
 
     async def connect(self):
         self.redis = await aioredis.from_url(self.redis_url, decode_responses=True)
+        self._connected = True
         logger.info("Connected to Redis")
 
     async def close(self):
         if self.redis:
             await self.redis.close()
+            self._connected = False
             logger.info("Redis connection closed")
+
+    @property
+    def is_connected(self) -> bool:  # <-- новое свойство
+        """Возвращает True, если Redis подключен."""
+        return self._connected
 
     def _key(self, task_id: str, suffix: str) -> str:
         return f"task:{task_id}:{suffix}"
