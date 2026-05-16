@@ -114,3 +114,13 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #   depends_on:
+  #     - api
+  #   restart: unless-stopped

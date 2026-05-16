@@ -30,7 +30,7 @@ jobs:
   # Этот job сработает только если runner имеет метку 'gpu'
   build-worker-gpu:
     runs-on: [self-hosted, gpu]
-    if: false   # Раскомментировать, когда появится GPU-раннер
+    if: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,6 +38,4 @@ jobs:
       - name: Build GPU Worker image
         run: docker build -f Dockerfile.worker-gpu -t street-sign-worker-gpu:${{ github.sha }} .
       - name: Smoke test (GPU)
-        run: |
-          docker run --rm --gpus all street-sign-worker-gpu:${{ github.sha }} \
-            python -c "from ml.model import load_model; import torch; assert torch.cuda.is_available(); load_model(); print('GPU Worker OK')"
+        run: docker run --rm --gpus all street-sign-worker-gpu:${{ github.sha }} python -c "from ml.model import load_model; import torch; assert torch.cuda.is_available(); load_model(); print('GPU Worker OK')"
