@@ -1,6 +1,7 @@
 """Конфигурация приложения с помощью Pydantic Settings."""
 from pydantic_settings import BaseSettings
 from pathlib import Path
+import os
 
 
 class Settings(BaseSettings):
@@ -22,7 +23,12 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore"  # разрешить игнорировать неописанные переменные
     }
-    MODEL_WEIGHTS_PATH: str = "ml/models/model_weights.pt"
+
+    MODEL_VERSION: str = "model_weights.pt"
+
+    @property
+    def MODEL_WEIGHTS_PATH(self) -> Path:
+        return Path("ml/models") / self.MODEL_VERSION
 
 
 settings = Settings()

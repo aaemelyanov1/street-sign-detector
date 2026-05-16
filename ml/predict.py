@@ -2,6 +2,7 @@
 Инференс YOLO на одном изображении.
 """
 import logging
+import time
 from pathlib import Path
 from typing import List, Dict
 from PIL import Image
@@ -186,12 +187,15 @@ def predict_from_file(image_path: str, confidence_threshold: float) -> List[Dict
         # Оставил твою оригинальную обработку ошибок
         raise Exception(f"Cannot open image file: {e}")
 
-    # Инференс YOLO
+    # Инференс YOLO с  замером времени
+    t_start = time.perf_counter()
     results = model.predict(
         source=image_path,
         conf=confidence_threshold,
         verbose=False
     )
+    elapsed_ms = (time.perf_counter() - t_start) * 1000
+    logger.info("Inference completed in %.1f ms", elapsed_ms)
 
     detections = []
     if len(results) == 0:

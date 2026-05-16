@@ -2,9 +2,11 @@
 Загрузка YOLO-модели из файла весов.
 """
 import logging
+import torch
 from ultralytics import YOLO
 from app.core.config import settings
 from app.core.exceptions import ModelLoadError
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,11 @@ def load_model() -> YOLO:
         try:
             logger.info("Loading YOLO model from %s", settings.MODEL_WEIGHTS_PATH)
             _model = YOLO(settings.MODEL_WEIGHTS_PATH)
-            logger.info("Model loaded successfully")
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            _model.to(device)
+            logger.info("Model loaded successfully on device: %s", device)
+            if device == "cuda":
+                logger.info("GPU: %s", torch.cuda.get_device_name(0))
         except Exception as e:
             logger.error("Failed to load model: %s", str(e))
             raise ModelLoadError(f"Cannot load model weights: {str(e)}") from e

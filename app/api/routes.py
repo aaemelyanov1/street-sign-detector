@@ -2,7 +2,7 @@
 import uuid
 import logging
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Request
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Request, Response
 from app.core.config import settings
 from app.api.schemas import TaskResponse, ResultResponse, DetectionResult
 from app.services.result_storage import ResultStorage
@@ -10,8 +10,16 @@ from app.services.kafka_producer import KafkaProducerManager
 from app.utils.image_helpers import save_upload_file
 from app.api.dependencies import get_kafka_producer, get_redis_client
 
+# Prometheus metrics
+from prometheus_client import Counter, Histogram, generate_latest
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Метрики Prometheus
+PREDICTIONS_TOTAL = Counter('predictions_total', 'Total number of prediction requests')
+PREDICTION_DURATION_SECONDS = Histogram('prediction_duration_seconds', 'Prediction request duration in seconds')
+ERRORS_TOTAL = Counter('errors_total', 'Total number of errors')
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png"}
 
@@ -28,6 +36,8 @@ async def create_detection_task(
     """
     # Валидация типа файла
     if file.content_type not in ALLOWED_CONTENT_TYPES:
+        # Увеличиваем счётчик ошибок
+        ERRORS_TOTAL.inc()
         raise HTTPException(status_code=400, detail="Unsupported file type. Only JPEG and PNG allowed.")
 
     # Сохранение файла
@@ -43,6 +53,10 @@ async def create_detection_task(
     # Отправка в Kafka
     await kafka_producer.send_request(task_id, str(saved_path), confidence_threshold)
     logger.info("Task created", extra={"task_id": task_id, "image_path": str(saved_path)})
+    
+    # Увеличиваем счётчик предсказаний
+    PREDICTIONS_TOTAL.inc()
+    
     return TaskResponse(task_id=task_id, status_url=f"/result/{task_id}")
 
 
@@ -56,6 +70,8 @@ async def get_task_result(
     """
     result_data = await redis_client.get_result(task_id)
     if result_data is None:
+        # Увеличиваем счётчик ошибок
+        ERRORS_TOTAL.inc()
         raise HTTPException(status_code=404, detail="Task not found")
 
     task_id = result_data["task_id"]
@@ -76,12 +92,46 @@ async def get_task_result(
     )
 
 
+@router.get("/metrics")
+async def metrics():
+    """
+    Эндпоинт для Prometheus метрик.
+    """
+    return Response(content=generate_latest().decode('utf-8'), media_type='text/plain')
+
+
 @router.get("/health")
-async def health():
-    return {"status": "ok"}
+async def health(request: Request):
+    """
+    Проверка здоровья сервиса (проверка Kafka и Redis).
+    """
+    try:
+        # Получаем клиенты из состояния приложения через request
+        redis_client = request.app.state.redis_client
+        if not redis_client.is_connected:
+            return {"status": "error", "details": {"redis": "disconnected"}}
+
+        kafka_producer = request.app.state.kafka_producer
+        if not kafka_producer.is_connected():
+            return {"status": "error", "details": {"kafka": "disconnected"}}
+            
+        return {"status": "ok", "details": {"redis": "connected", "kafka": "connected"}}
+    except Exception as e:
+        return {"status": "error", "details": {"exception": str(e)}}
 
 
 @router.get("/ready")
 async def ready(request: Request):
-    # Проверка, что продюсер Kafka жив (можно не проверять, просто ok)
-    return {"status": "ok"}
+    """
+    Проверка готовности сервиса.
+    """
+    try:
+        # Проверяем, загружена ли модель
+        # Предполагаем, что модель загружается в worker, и мы можем проверить это через состояние
+        # В реальности это может быть более сложная проверка
+        
+        # Пока просто возвращаем ok, так как у нас нет прямого доступа к состоянию модели
+        # В реальном приложении здесь должна быть проверка состояния модели
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "details": {"exception": str(e)}}
