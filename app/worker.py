@@ -5,6 +5,7 @@
 import asyncio
 import logging
 import os
+import platform
 import time
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from ml.model import load_model, ModelLoadError
 setup_logging()
 logger = logging.getLogger(__name__)
 
+WORKER_ID = f"{platform.node()}-{os.getpid()}"
 
 def cleanup_old_files(upload_dir: str, max_age_seconds: int = 1800):
     """Удаляет файлы старше max_age_seconds в upload_dir (не рекурсивно)."""
@@ -35,6 +37,16 @@ def cleanup_old_files(upload_dir: str, max_age_seconds: int = 1800):
     except Exception as e:
         logger.warning("Error during cleanup of old files: %s", str(e))
 
+async def heartbeat_loop(redis_client: ResultStorage):
+    """Периодически отмечает воркер как активный в Redis."""
+    while True:
+        try:
+            await redis_client.redis.sadd("workers:active", WORKER_ID)
+            await redis_client.redis.expire("workers:active", 60)
+        except Exception as e:
+            logger.warning("Heartbeat failed: %s", str(e))
+        await asyncio.sleep(10)
+
 
 async def main():
     logger.info("Starting worker")
@@ -51,6 +63,9 @@ async def main():
 
     redis_client = ResultStorage(redis_url=settings.REDIS_URL)
     await redis_client.connect()
+
+    # Запуск фоновой задачи heartbeat
+    asyncio.create_task(heartbeat_loop(redis_client))
 
     # Обработчик сообщений
     async def handle_message(task_id: str, image_path: str, confidence_threshold: float):
@@ -81,6 +96,10 @@ async def main():
     try:
         await asyncio.Future()
     finally:
+        try:
+            await redis_client.redis.srem("workers:active", WORKER_ID)
+        except Exception as e:
+            logger.debug("Failed to remove worker from active set: %s", str(e))
         await consumer_manager.stop()
         await redis_client.close()
 

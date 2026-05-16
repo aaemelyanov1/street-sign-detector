@@ -8,6 +8,9 @@ COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir --default-timeout=300 -r requirements.txt
 
+# Установка curl для healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
