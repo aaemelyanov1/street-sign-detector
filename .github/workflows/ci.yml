@@ -30,7 +30,7 @@ jobs:
   # Этот job сработает только если runner имеет метку 'gpu'
   build-worker-gpu:
     runs-on: [self-hosted, gpu]
-    if: false   # Раскомментировать, когда появится GPU-раннер
+    if: true
     steps:
       - uses: actions/checkout@v4
         with:
