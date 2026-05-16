@@ -38,6 +38,4 @@ jobs:
       - name: Build GPU Worker image
         run: docker build -f Dockerfile.worker-gpu -t street-sign-worker-gpu:${{ github.sha }} .
       - name: Smoke test (GPU)
-        run: |
-          docker run --rm --gpus all street-sign-worker-gpu:${{ github.sha }} \
-            python -c "from ml.model import load_model; import torch; assert torch.cuda.is_available(); load_model(); print('GPU Worker OK')"
+        run: docker run --rm --gpus all street-sign-worker-gpu:${{ github.sha }} python -c "from ml.model import load_model; import torch; assert torch.cuda.is_available(); load_model(); print('GPU Worker OK')"

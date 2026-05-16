@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
-COPY requirements.txt .
-
 # Устанавливаем PyTorch с CUDA 12.1
 RUN pip install --no-cache-dir --default-timeout=300 \
     torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+COPY requirements.txt .
 
 RUN pip install --no-cache-dir --default-timeout=300 -r requirements.txt
 
