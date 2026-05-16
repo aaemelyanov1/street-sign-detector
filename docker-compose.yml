@@ -4,7 +4,6 @@ x-worker-env: &worker-env
   REDIS_URL: redis://redis:6379
   UPLOAD_DIR: /data/uploads
   DEFAULT_CONFIDENCE_THRESHOLD: 0.5
-  MAX_IMAGE_SIZE_MB: 10
 
 services:
   kafka:
@@ -61,6 +60,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   frontend:
@@ -89,6 +94,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "pgrep -f 'python -m app.worker' > /dev/null || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
     # Масштабирование задаётся при запуске: docker compose up --scale worker=2
   worker-gpu:
@@ -106,6 +117,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "pgrep -f 'python -m app.worker' > /dev/null || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
     deploy:
       resources:

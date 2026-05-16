@@ -23,6 +23,10 @@ ERRORS_TOTAL = Counter('errors_total', 'Total number of errors')
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png"}
 
+async def _has_workers(redis: ResultStorage) -> bool:
+    """Проверяет, есть ли хотя бы один активный worker."""
+    count = await redis.redis.scard("workers:active")
+    return count > 0
 
 @router.post("/detect", response_model=TaskResponse, status_code=202)
 async def create_detection_task(
@@ -40,6 +44,11 @@ async def create_detection_task(
         ERRORS_TOTAL.inc()
         raise HTTPException(status_code=400, detail="Unsupported file type. Only JPEG and PNG allowed.")
 
+        # Проверка доступности worker'ов
+        if not await _has_workers(redis_client):
+            ERRORS_TOTAL.inc()
+            raise HTTPException(status_code=503, detail="No available workers. Please try later.")
+
     # Сохранение файла
     content = await file.read()
     file_bytes = content
@@ -56,7 +65,6 @@ async def create_detection_task(
     
     # Увеличиваем счётчик предсказаний
     PREDICTIONS_TOTAL.inc()
-    
     return TaskResponse(task_id=task_id, status_url=f"/result/{task_id}")
 
 
